@@ -1,0 +1,265 @@
+---
+title: "Final Dashboard Project"
+authors: "David Griffin"
+output: 
+  flexdashboard::flex_dashboard:
+    storyboard: true
+---
+
+```{r setup, include=FALSE}
+
+# this line specifies options for default options for all R Chunks
+knitr::opts_chunk$set(echo=F)
+
+# suppress scientific notation
+options(scipen=100)
+
+# install helper package that loads and installs other packages, if needed
+if (!require("pacman")) install.packages("pacman", repos = "http://lib.stat.cmu.edu/R/CRAN/")
+
+p_load(tidyverse, ggthemes, magrittr, lubridate, tidyquant, highcharter, gridExtra,flexdashboard, knitr, RColorBrewer, hrbrthemes, wesanderson, grDevices, colorRamps)
+
+# verify packages, if needed
+p_loaded()
+
+```
+
+### Coffe Makers' Market Trends
+```{r retrieval of stock data for plot 1, message=F, warning=F, results='hide'}
+
+getSymbols("KDP", from = "2016-01-01", to = "2022-01-01")
+
+getSymbols("NSRGY", from = "2016-01-01", to = "2022-01-01") 
+
+getSymbols("WRK", from = "2016-01-01", to = "2022-01-01")
+
+```
+
+```{r data mgmt and plot code for plot 1}
+
+# plot adjusted, high and low for this time frame
+
+kdp_hist <- hchart(KDP$KDP.Adjusted, name="Adjusted", color="yellow") |>
+  
+  hc_add_series(KDP$KDP.High, name="High", color="darkred") |>
+  
+  hc_add_series(KDP$KDP.Low, name="Low", color="lightcoral")
+
+
+nsrgy_hist <- hchart(NSRGY$NSRGY.Adjusted, name="Adjusted", color="purple") |>
+  
+  hc_add_series(NSRGY$NSRGY.High, name="High", color="darkblue") |>
+  
+  hc_add_series(NSRGY$NSRGY.Low, name="Low", color="lightblue")
+
+
+wrk_hist <- hchart(WRK$WRK.Adjusted, name="Adjusted", color="green") |>
+  
+  hc_add_series(WRK$WRK.High, name="High", color="lightgreen") |>
+  
+  hc_add_series(WRK$WRK.Low, name="Low", color="orange")
+
+
+# plot these three stocks together
+
+hw_grid(kdp_hist, nsrgy_hist, wrk_hist, ncol=3) 
+
+```
+
+***
+
+As seen from the first time series graph, there was an extreme drop in the stock of KDP (Keurig Dr Pepper Inc.) in July 2018, since then it has slowly increased but is still valued much less than the following stocks. 
+
+Compared to the stock of NSRGY (Nestle S.A. ADR) which has had a linear positive trend since 2016, and is most recently valued at $136. 
+
+Finally, the stock of WRK (WestRock Co.) differs from the previous two due to the fact that it is the most inconsistent stock of the three. With multiple highs and lows from 2016 to 2021, the stock is not very reliable.
+
+
+
+***
+
+### Planned Spending on coffee makers
+```{r data mgmt and plot code for plot 2}
+
+cof_cost <- read_csv("Q2_planned-spending-on-coffee-makers-among-us-consumers-2017-by-age.csv", show_col_types = F, skip = 2)
+  
+#get rid of unnecessary column
+cof_cost_pie <- cof_cost |>
+  select(...1, `18 to 29 years`, `30 to 59 years`, `60 years and older`) |>
+  
+#rename columns for easier management
+  rename(planned_spending = ...1,
+         demo1 = `18 to 29 years`,
+         demo2 = `30 to 59 years`,
+         demo3 = `60 years and older`) |>
+  
+#get rid of unnecessary row
+  slice(1:8) |>
+
+#sum across all demographics
+  rowwise() |>
+  mutate(total = sum(c_across(demo1:demo3))) |>
+  ungroup()
+
+#convert age demographics to factors
+cof_cost_pie <- cof_cost_pie |>
+  mutate(demo1_text = paste("(", demo1, ")  ", planned_spending, sep="")) |>
+  mutate(demo2_text = paste("(", demo2, ")  ", planned_spending, sep="")) |>
+  mutate(demo3_text = paste("(", demo3, ")  ", planned_spending, sep=""))
+
+#make planned_spending ordinal
+cof_cost_pie <- cof_cost_pie |>
+  mutate(planned_spendingF = factor(planned_spending,
+                                    levels = c("$25 or less", "$26 to 50", "$51 to 100", "$101 to 250", "$251 to 500", "$501 to 1.000", "$1.001 or more", "Don't know")))
+                                               
+#create pie charts
+p18_29 <- cof_cost_pie |>
+  ggplot(aes(x="", y=demo1, fill=planned_spendingF)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  labs(fill = "Planned Spending", subtitle='Ages 18-29', y="", x="")
+
+
+p30_59 <- cof_cost_pie |>
+ ggplot(aes(x="", y=demo2, fill=planned_spendingF)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) +
+  theme_void() + 
+  labs(fill = "Planned Spending", subtitle='Ages 30-59', y="", x="")
+
+
+p60_plus <- cof_cost_pie |>
+  ggplot(aes(x="", y=demo3, fill=planned_spendingF)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) +
+  theme_void() + 
+  labs(fill = "Planned Spending", subtitle='Ages 60+', y="", x="")
+
+grid.arrange(p18_29, p30_59, p60_plus, ncol=2)
+
+```
+
+***
+
+In 2017, there was a survey that recorded the planned consumer spending on coffee makers in the United States by age. The 3 different age groups were 18-29, 30-59, and 60 and older. The consumer spending was separated from $25 or less, $26-50, $51-100, $101-250, $251-500, $501-10000 and $1000+. 
+
+Data Source: [Statista](https://www.statista.com/statistics/679454/planned-spending-on-coffee-makers-among-us-consumers-by-age/)
+
+***
+
+### Livestream e-commerce sales in the United States
+```{r data mgmt and plot code for plot 3}
+#import the data
+predit_sales <- read_csv("Q3_live-commerce-market-size-in-the-us-2020-2024.csv", show_col_types = F, skip = 2)
+
+#plot a barchart
+predit_sales_plot <- predit_sales
+  colnames(predit_sales_plot)<- c("Year","Sales") 
+  predit_sales_plot$Sales <- as.numeric(as.character(predit_sales_plot$Sales)) 
+  predit_sales_plot$Year = as.factor(gsub("*", "", predit_sales_plot$Year)) 
+  
+  ggplot(predit_sales_plot, aes(x = Year, y = Sales, fill = Sales)) +
+  geom_bar(position = "dodge",  stat="identity") +
+  geom_text(
+    aes(label = Sales),
+    colour = "white", size = 4,
+    vjust = 2.0, position=position_dodge(width=0.9)) +
+  theme_classic() +
+    
+  labs(x="Year", y="Sales (billions)", fill="Sales(billions)",
+       title="Livestream e-commerce sales in Billions in the United States", subtitle="2020 - 2024",
+       caption="Data Source: https://www.statista.com/statistics/1276120/livestream-e-commerce-sales-united-states/")+
+  
+  theme(plot.title = element_text(size=12, color = "black",  hjust = .65),
+        legend.title = element_text(colour="black", size=8,vjust=2),
+        axis.text.x = element_text(color="black", size=10),
+        axis.text.y = element_text(color="black", size=10),
+        plot.caption = element_text(color="black", size=6, hjust = .2),
+        plot.subtitle = element_text(color="black", size=10, hjust = .87, face = "italic"))
+    
+# create variables for inline code
+D <- Sys.Date()
+ds <- stamp("2022", quiet = T)(D)
+yr_to_date_sales <- predit_sales_plot$Sales
+pct_of_prev <- round(predit_sales_plot$Sales[1]/predit_sales_plot$Sales[2],2)
+```
+
+***
+In 2021, livestream e-commerce was forecast to generate `r yr_to_date_sales[2]` billion U.S. dollars in online sales in the United States. 
+
+This is `r pct_of_prev`% of last year's total predicted sales on e-commerce in the US.
+
+By 2024, the e-commerce revenue created from live online shopping was expected to increase threefold, reaching 35 billion dollars. YouTube was found to be the most popular livestream e-commerce platform in the United States.
+
+***
+This plot does not include reasons that increasing number of customers choose to shop online (shown in Plot 5).  
+Further analyses would benefit from having data that differentiates between predicted numbers and actual numbers.
+
+***
+
+### Top Reasons for not Purchasing Appliances Online
+
+```{r data mgmt and plot code for plot 4}
+#i,port data
+shop_no <- read_csv("Q3_leading-reasons-for-not-purchasing-beverage-appliances-online-in-canada-2014.csv", show_col_types = F, skip = 2)
+
+#modify data
+colnames(shop_no)<- c("Reason","Ratio")
+shop_no <- shop_no[,-3]
+
+shop_no$Ratio <- as.numeric(as.character(shop_no$Ratio)) 
+
+shop_no_plot <- shop_no |>
+  filter(Ratio>25) |>
+   mutate(Ratio = paste(Ratio,"%"),
+          Reason = factor(Reason,
+                         levels = c("Want to see and touch the products","Didn't want to wait for delivery","Shipping and handling costs")))
+                  
+#plot a barchart
+  ggplot(shop_no_plot, aes(x = Reason, y = Ratio, fill = Ratio)) +
+  geom_bar(position = "dodge",  stat="identity") +
+  coord_flip()+
+  labs(x="Reasons", y="Ratio", fill="Ratio",
+       title="Leading reasons for not purchasing beverage appliances online", subtitle="in Canada")+
+    
+  theme(plot.title = element_text(size=10, color = "black",  hjust =1),
+          legend.title = element_text(colour="black", size=8,vjust= 4),
+          axis.text.x = element_text(color="black", size=8),
+          axis.text.y = element_text(color="black", size=10),
+          plot.caption = element_text(color="black", size=6, hjust =2 ),
+          plot.subtitle = element_text(color="black", size=10, hjust = 1.1, face = "italic"))                   
+         
+     
+ 
+```
+
+***
+
+The survey shows the leading reasons for not purchasing beverage domestic appliances online in Canada as of January 2014. During the survey, 34 percent of the respondents said the main reason for not purchasing beverage domestic appliances online was that they cannot see or touch the products. 
+
+Further analyses would benefit from having data that focusing on United States
+
+Data Source: [Statista](https://www.statista.com/statistics/436268/reasons-for-not-purchasing-beverage-domestic-appliances-online-canada/)
+
+***
+
+Top Reasons for Consumers Shopping in Livestreams in the US
+
+```{r data mgmt and plot code for plot 5 - summary table}
+
+shop_live <- read_csv("Q3_leading-reasons-for-consumers-to-shop-in-livestreams-in-the-us-2021.csv", show_col_types = F, skip = 2)
+
+colnames(shop_live)<- c("Top Reasons Shopping Online","Ratio(%)")
+
+shop_live <- shop_live[,-3]
+
+kable(shop_live)
+
+```
+
+***
+
+During a 2021 survey, almost 40 percent of respondents in the United States said they purchased in livestreams because of great deals. Meanwhile, 38.2 percent said their main reason for using livestream for shopping was to discover new products.
+
+***
